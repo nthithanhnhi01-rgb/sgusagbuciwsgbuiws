@@ -3,4 +3,5 @@ pandas
 gunicorn
 openpyxl
 xlsxwriter
+psycopg2-binary
 requests
