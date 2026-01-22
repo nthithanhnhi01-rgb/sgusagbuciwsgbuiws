@@ -114,10 +114,15 @@ def admin_panel():
             msg = "🗑️ Đã xóa user!"
     return render_template('admin.html', users=db.get_all_users(), msg=msg)
 
-@app.route('/', methods=['GET'])
+@app.route('/')
 def index():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    return render_template('index.html', count=0, results=[])
+    # Kiểm tra xem người dùng đã đăng nhập chưa
+    if 'username' not in session:
+        # Nếu chưa, đá họ về trang login ngay lập tức
+        return redirect(url_for('login'))
+    
+    # Nếu đã đăng nhập rồi thì mới cho xem nội dung trang chủ
+    return render_template('index.html')
 
 @app.route('/api/search', methods=['POST'])
 def api_search():
