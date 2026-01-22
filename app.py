@@ -1,9 +1,10 @@
-from flask import Flask, render_template, request, send_file, render_template_string
+from flask import Flask, render_template, request, session, redirect, url_for, send_file, render_template_string
 import pandas as pd
 import io
+import database as db  # Đảm bảo bạn đã tạo file database.py như tôi hướng dẫn trước đó
 
 app = Flask(__name__)
-app.secret_key = 'SHINE_GROUP_SECRET'
+app.secret_key = 'SHINE_GROUP_SECRET_KEY' # Đổi cái này thành một chuỗi bí mật bất kỳ
 
 # --- CẤU HÌNH DATA ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS-4uKzaw2LpN5lBOGyG4MB3DPbaC6p6SbtO-yhoEQHRVFx30UHgJOSGfwTn-dOHkhBjAMoDea8n0ih/pub?gid=0&single=true&output=csv"
@@ -11,23 +12,19 @@ SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS-4uKzaw2LpN5lBOGy
 def get_dataframe():
     try:
         df = pd.read_csv(SHEET_URL, dtype=str)
-        df.fillna("", inplace=True) # Xử lý lỗi NaN
+        df.fillna("", inplace=True)
         df.columns = df.columns.str.strip()
         return df
     except Exception as e:
-        print("Lỗi data:", e)
+        print("Lỗi tải data:", e)
         return pd.DataFrame()
 
-# --- LOGIC LỌC DỮ LIỆU ---
 def filter_data(df, form_data):
-    # 1. Lọc Batch (Ưu tiên)
     batch_input = form_data.get('batch_input', '').strip()
     if batch_input:
         keywords = [x.strip().replace('"', '').replace("'", "") for x in batch_input.split(';') if x.strip()]
-        if 'MaCAS' in df.columns:
-            return df[df['MaCAS'].isin(keywords)]
+        if 'MaCAS' in df.columns: return df[df['MaCAS'].isin(keywords)]
             
-    # 2. Lọc Single
     f_cas = form_data.get('f_cas', '').strip()
     f_name = form_data.get('f_name', '').strip()
     f_formula = form_data.get('f_formula', '').strip()
@@ -41,10 +38,9 @@ def filter_data(df, form_data):
         df = df[mask]
     if f_formula and 'Công thức hóa học' in df.columns:
         df = df[df['Công thức hóa học'].str.contains(f_formula, case=False, na=False)]
-        
     return df
 
-# --- HTML TEMPLATE CHO HÀNG (Dùng để trả về cho AJAX) ---
+# Template cho từng hàng kết quả (Bỏ chữ 'Văn bản', thay bằng icon i)
 ROW_TEMPLATE = """
 {% if results %}
     {% for row in results %}
@@ -54,12 +50,10 @@ ROW_TEMPLATE = """
         <td class="text-secondary">{{ row['Tên khoa học (danh pháp IUPAC)'] }}</td>
         <td class="col-cas col-center">{{ row['MaCAS'] }}</td>
         <td class="col-center">{{ row['Công thức hóa học'] }}</td>
-        <td class="text-end">
+        <td class="text-center">
             {% if row['Ngưỡng khối lượng hóa chất tồn trữ lớn nhất tại một thời điểm (kg)'] %}
                 <span class="threshold-high">{{ row['Ngưỡng khối lượng hóa chất tồn trữ lớn nhất tại một thời điểm (kg)'] }}</span>
-            {% else %}
-                <span class="text-muted small">-</span>
-            {% endif %}
+            {% else %}<span class="text-muted small">-</span>{% endif %}
         </td>
         <td>
             {% if row['Phụ lục quản lý'] %}
@@ -67,12 +61,8 @@ ROW_TEMPLATE = """
                 {% for item in items %}
                     {% if item.strip() %}
                         {% set cls = 'bg-info-light' %}
-                        {% set txt_lower = item.lower() %}
-                        {% if 'hạn chế' in txt_lower or 'nguy hiểm' in txt_lower or 'pl i' in txt_lower or 'tiền chất' in txt_lower %}
-                            {% set cls = 'bg-danger-light' %}
-                        {% elif 'khai báo' in txt_lower or 'pl v' in txt_lower %}
-                            {% set cls = 'bg-warning-light' %}
-                        {% endif %}
+                        {% if 'hạn chế' in item.lower() or 'pl i' in item.lower() %}{% set cls = 'bg-danger-light' %}
+                        {% elif 'khai báo' in item.lower() or 'pl v' in item.lower() %}{% set cls = 'bg-warning-light' %}{% endif %}
                         <span class="badge-custom {{ cls }}">{{ item }}</span>
                     {% endif %}
                 {% endfor %}
@@ -80,8 +70,9 @@ ROW_TEMPLATE = """
         </td>
         <td class="col-center">
             {% if row['Link văn bản']|length > 5 %}
-                <a href="{{ row['Link văn bản'] }}" target="_blank" class="link-icon" ><i class="fa-solid fa-circle-info fa-xl"></i>
-</a>
+                <a href="{{ row['Link văn bản'] }}" target="_blank" class="link-icon">
+                    <i class="fa-solid fa-circle-info fa-xl"></i>
+                </a>
             {% endif %}
         </td>
     </tr>
@@ -93,41 +84,58 @@ ROW_TEMPLATE = """
 
 # --- ROUTES ---
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        u, p = request.form.get('username'), request.form.get('password')
+        role = db.check_login(u, p)
+        if role:
+            session.update({'logged_in': True, 'user': u, 'role': role})
+            return redirect(url_for('index'))
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin_panel():
+    if not session.get('logged_in') or session.get('role') != 'admin':
+        return "Bạn không có quyền truy cập!", 403
+    msg = ""
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add':
+            if db.add_user(request.form['new_user'], request.form['new_pass']): msg = "✅ Đã thêm user!"
+            else: msg = "❌ Lỗi: User đã tồn tại!"
+        elif action == 'delete':
+            db.delete_user(request.form['del_user'])
+            msg = "🗑️ Đã xóa user!"
+    return render_template('admin.html', users=db.get_all_users(), msg=msg)
+
 @app.route('/', methods=['GET'])
 def index():
-    # Load trang lần đầu (chưa tìm gì)
+    if not session.get('logged_in'): return redirect(url_for('login'))
     return render_template('index.html', count=0, results=[])
 
-# ĐÂY LÀ ĐƯỜNG DẪN MÀ BẠN ĐANG BỊ THIẾU (LỖI 404)
 @app.route('/api/search', methods=['POST'])
 def api_search():
+    if not session.get('logged_in'): return {"html": "", "count": 0}
     df = get_dataframe()
-    count = 0
-    html_rows = ""
-    
-    if not df.empty:
-        df_result = filter_data(df, request.form)
-        count = len(df_result)
-        results = df_result.to_dict('records')
-        # Render HTML từ template con
-        html_rows = render_template_string(ROW_TEMPLATE, results=results)
-    
-    # Trả về JSON cho Javascript
-    return {"html": html_rows, "count": count}
+    df_res = filter_data(df, request.form) if not df.empty else pd.DataFrame()
+    return {"html": render_template_string(ROW_TEMPLATE, results=df_res.to_dict('records')), "count": len(df_res)}
 
 @app.route('/export', methods=['POST'])
 def export():
+    if not session.get('logged_in'): return redirect(url_for('login'))
     df = get_dataframe()
-    if not df.empty:
-        df = filter_data(df, request.form)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='KetQua')
-    writer.close()
-    output.seek(0)
-    
-    return send_file(output, download_name="KetQua.xlsx", as_attachment=True)
+    df_res = filter_data(df, request.form) if not df.empty else pd.DataFrame()
+    out = io.BytesIO()
+    with pd.ExcelWriter(out, engine='xlsxwriter') as writer:
+        df_res.to_excel(writer, index=False, sheet_name='KetQua')
+    out.seek(0)
+    return send_file(out, download_name="KetQua.xlsx", as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True)
