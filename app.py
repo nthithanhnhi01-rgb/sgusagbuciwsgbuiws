@@ -129,10 +129,17 @@ def index():
 
 @app.route('/api/search', methods=['POST'])
 def api_search():
-    if not session.get('logged_in'): return {"html": "", "count": 0}
+    # Sửa từ 'logged_in' thành 'username' để khớp với hàm login
+    if not session.get('username'): 
+        return {"html": "<tr><td colspan='5'>Vui lòng đăng nhập lại.</td></tr>", "count": 0}
+    
     df = get_dataframe()
     df_res = filter_data(df, request.form) if not df.empty else pd.DataFrame()
-    return {"html": render_template_string(ROW_TEMPLATE, results=df_res.to_dict('records')), "count": len(df_res)}
+    
+    return {
+        "html": render_template_string(ROW_TEMPLATE, results=df_res.to_dict('records')), 
+        "count": len(df_res)
+    }
 
 @app.route('/export', methods=['POST'])
 def export():
