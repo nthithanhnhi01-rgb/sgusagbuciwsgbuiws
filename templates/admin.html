@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <title>Admin - Quản lý Khách hàng</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light p-5">
+    <div class="container bg-white p-4 rounded shadow">
+        <div class="d-flex justify-content-between mb-4">
+            <h2>💰 QUẢN LÝ KHÁCH HÀNG</h2>
+            <a href="/" class="btn btn-outline-primary">Về trang tra cứu</a>
+        </div>
+
+        {% if msg %}
+        <div class="alert alert-info">{{ msg }}</div>
+        {% endif %}
+
+        <div class="row">
+            <div class="col-md-4 border-end">
+                <h4>Thêm khách mới</h4>
+                <form method="POST">
+                    <input type="hidden" name="action" value="add">
+                    <div class="mb-2">
+                        <label>Tên đăng nhập (Email/SĐT)</label>
+                        <input type="text" name="new_user" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Mật khẩu</label>
+                        <input type="text" name="new_pass" class="form-control" required>
+                    </div>
+                    <button class="btn btn-success w-100">➕ Tạo tài khoản</button>
+                </form>
+            </div>
+
+            <div class="col-md-8">
+                <h4>Danh sách đang thuê ({{ users|length }})</h4>
+                <table class="table table-bordered">
+                    <thead><tr><th>User</th><th>Pass</th><th>Trạng thái</th><th>Hành động</th></tr></thead>
+                    <tbody>
+                        {% for u in users %}
+                        <tr>
+                            <td>{{ u[0] }}</td>
+                            <td>{{ u[1] }}</td>
+                            <td class="text-success fw-bold">{{ u[2] }}</td>
+                            <td>
+                                <form method="POST" onsubmit="return confirm('Xóa khách này?')">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="del_user" value="{{ u[0] }}">
+                                    <button class="btn btn-danger btn-sm">Xóa / Cắt HĐ</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
