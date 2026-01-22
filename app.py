@@ -4,7 +4,7 @@ import io
 import database as db  # Đảm bảo bạn đã tạo file database.py như tôi hướng dẫn trước đó
 
 app = Flask(__name__)
-app.secret_key = 'SHINE_GROUP_SECRET_KEY' # Đổi cái này thành một chuỗi bí mật bất kỳ
+app.secret_key = 'qwertyuiGRE572385' # Đổi cái này thành một chuỗi bí mật bất kỳ
 
 # --- CẤU HÌNH DATA ---
 SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS-4uKzaw2LpN5lBOGyG4MB3DPbaC6p6SbtO-yhoEQHRVFx30UHgJOSGfwTn-dOHkhBjAMoDea8n0ih/pub?gid=0&single=true&output=csv"
@@ -87,10 +87,13 @@ ROW_TEMPLATE = """
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        u, p = request.form.get('username'), request.form.get('password')
-        role = db.check_login(u, p)
-        if role:
-            session.update({'logged_in': True, 'user': u, 'role': role})
+        user = request.form['username']
+        pw = request.form['password']
+        
+        # Giả sử hàm kiểm tra database trả về True
+        if check_database(user, pw):
+            session['username'] = user  # <--- PHẢI CÓ DÒNG NÀY
+            session['role'] = 'admin'   # Lưu quyền để vào trang /admin
             return redirect(url_for('index'))
     return render_template('login.html')
 
