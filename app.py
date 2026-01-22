@@ -91,7 +91,7 @@ def login():
         pw = request.form['password']
         
         # Giả sử hàm kiểm tra database trả về True
-        if check_database(user, pw):
+        if db.check_database(user, pw):
             session['username'] = user  # <--- PHẢI CÓ DÒNG NÀY
             session['role'] = 'admin'   # Lưu quyền để vào trang /admin
             return redirect(url_for('index'))
