@@ -48,8 +48,8 @@
         .bg-danger-light { background-color: #f8d7da; color: #842029; border-color: #f5c2c7; }
         .bg-warning-light { background-color: #fff3cd; color: #664d03; border-color: #ffecb5; }
         .bg-info-light { background-color: #cff4fc; color: #055160; border-color: #b6effb; }
-        .link-icon { color: #0d6efd; text-decoration: none; }
-        .link-icon:hover { text-decoration: underline; }
+        .link-icon { color: #6c757d; text-decoration: none; }
+        .link-icon:hover { color: #212529; } /* Hover thành màu đen */
         .loading { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
@@ -175,6 +175,8 @@
     <script>
         function setTab(tabName) {
             document.getElementById('current_tab').value = tabName;
+            // Chuyển tab thì xóa kết quả cũ để tránh nhầm lẫn
+            resetFilters(); 
         }
 
         function handleEnter(e) {
@@ -189,17 +191,47 @@
             document.getElementById('inputName').value = '';
             document.getElementById('inputFormula').value = '';
             document.getElementById('batchInput').value = '';
-            document.getElementById('inputCAS').focus();
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted">Đã xóa bộ lọc.</td></tr>';
+            
+            // Xóa sạch bảng kết quả
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted"><i class="fa-solid fa-keyboard fa-2x mb-3 d-block opacity-25"></i>Vui lòng nhập thông tin để tìm kiếm...</td></tr>';
             document.getElementById('resultCount').innerText = '0';
+            
+            // Focus vào ô CAS nếu đang ở tab đơn
+            if(document.getElementById('current_tab').value === 'filter') {
+                document.getElementById('inputCAS').focus();
+            }
         }
 
         let timeout = null;
         function performSearch() {
             const form = document.getElementById('searchForm');
             const formData = new FormData(form);
-            const tableBody = document.getElementById('tableBody');
             
+            // --- CỐT CHẶN QUAN TRỌNG: KIỂM TRA DỮ LIỆU RỖNG ---
+            let hasData = false;
+            const currentTab = document.getElementById('current_tab').value;
+
+            if (currentTab === 'filter') {
+                // Nếu ở tab đơn: Kiểm tra 3 ô nhập liệu
+                const f_cas = document.getElementById('inputCAS').value.trim();
+                const f_name = document.getElementById('inputName').value.trim();
+                const f_formula = document.getElementById('inputFormula').value.trim();
+                if (f_cas || f_name || f_formula) hasData = true;
+            } else {
+                // Nếu ở tab hàng loạt: Kiểm tra ô batch
+                const batch = document.getElementById('batchInput').value.trim();
+                if (batch) hasData = true;
+            }
+
+            // Nếu không có chữ nào -> KHÔNG TÌM KIẾM, CHỈ RESET BẢNG
+            if (!hasData) {
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="8" class="text-center py-5 text-muted"><i class="fa-solid fa-keyboard fa-2x mb-3 d-block opacity-25"></i>Vui lòng nhập thông tin để tìm kiếm...</td></tr>';
+                document.getElementById('resultCount').innerText = '0';
+                return; // Dừng lại ngay, không gọi API
+            }
+            // ----------------------------------------------------
+
+            const tableBody = document.getElementById('tableBody');
             tableBody.classList.add('loading');
 
             fetch('/api/search', {
@@ -219,6 +251,23 @@
         }
 
         function submitExport() {
+            // Cũng kiểm tra rỗng trước khi cho xuất Excel
+            const currentTab = document.getElementById('current_tab').value;
+            let hasData = false;
+            
+            if (currentTab === 'filter') {
+                if (document.getElementById('inputCAS').value.trim() || 
+                    document.getElementById('inputName').value.trim() || 
+                    document.getElementById('inputFormula').value.trim()) hasData = true;
+            } else {
+                if (document.getElementById('batchInput').value.trim()) hasData = true;
+            }
+
+            if (!hasData) {
+                alert("Vui lòng nhập dữ liệu trước khi xuất file!");
+                return;
+            }
+
             const form = document.getElementById('searchForm');
             form.action = '/export';
             form.method = 'POST';
@@ -234,10 +283,19 @@
                     timeout = setTimeout(performSearch, 500); 
                 }
             });
+            // Sự kiện change (Tab/Click ra ngoài)
             input.addEventListener('change', function() {
                 performSearch();
             });
         });
+        
+        // Thêm sự kiện cho textarea Batch (vì nó không có class live-search)
+        const batchInput = document.getElementById('batchInput');
+        if(batchInput){
+            batchInput.addEventListener('change', function(){
+                performSearch();
+            });
+        }
     </script>
 </body>
 </html>
