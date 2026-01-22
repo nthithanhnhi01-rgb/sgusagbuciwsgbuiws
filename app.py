@@ -80,7 +80,8 @@ ROW_TEMPLATE = """
         </td>
         <td class="col-center">
             {% if row['Link văn bản']|length > 5 %}
-                <a href="{{ row['Link văn bản'] }}" target="_blank" class="link-icon">Văn bản <i class="fa-solid fa-up-right-from-square"></i></a>
+                <a href="{{ row['Link văn bản'] }}" target="_blank" class="link-icon" ><i class="fa-solid fa-circle-info fa-xl"></i>
+</a>
             {% endif %}
         </td>
     </tr>
